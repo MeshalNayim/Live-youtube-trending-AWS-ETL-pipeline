@@ -8,6 +8,12 @@ After Silver is built, a data quality Lambda runs about 14 checks across both ta
 
 The whole flow runs through Step Functions with parallel branches for the transforms, scoped retries on transient errors, and explicit failure paths. Gold tables are registered in the Glue Catalog and queried by a Streamlit dashboard that runs Athena queries through awswrangler and renders Plotly charts. The dashboard ships with a Dockerfile and docker compose for local runs.
 
+
+## Step-Function
+
+<img width="1088" height="637" alt="image" src="https://github.com/user-attachments/assets/b963924b-060a-4ca0-8e54-89d11dd80c13" />
+
+
 ## Architecture
 
 ```
@@ -180,10 +186,6 @@ If reproducing in your own account, you'll need (all in `us-west-2`):
 - IAM roles for each component with scoped permissions
 
 A YouTube Data API v3 key is required for ingestion.
-
-## Step-Function
-
-<img width="1088" height="637" alt="image" src="https://github.com/user-attachments/assets/b963924b-060a-4ca0-8e54-89d11dd80c13" />
 
 
 
