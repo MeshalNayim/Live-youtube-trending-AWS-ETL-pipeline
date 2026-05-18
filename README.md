@@ -2,7 +2,7 @@
 
 🔴 **Live dashboard:** <https://live-youtube-trending-aws-etl-pipeline.streamlit.app/>
 
-A working data pipeline I built on AWS to learn the medallion architecture end to end. Every few hours a scheduled Lambda hits the YouTube Data API and pulls trending video stats plus category mappings for 10 regions, landing raw JSON in a Bronze S3 bucket. A Glue Spark job reads Bronze, enforces schema, deduplicates, and adds derived metrics like engagement rate, then writes Parquet to Silver. A separate small Lambda handles the category reference data on S3 events.
+A working data pipeline I built on AWS to learn the medallion architecture end to end. An EventBridge schedule kicks off a Step Functions execution every few hours. The first state invokes a Lambda that hits the YouTube Data API and pulls trending video stats plus category mappings for 10 regions, landing raw JSON in a Bronze S3 bucket. From there, two transforms run in parallel: a Glue Spark job reads Bronze, enforces schema, deduplicates, and adds derived metrics like engagement rate before writing Parquet to Silver, while a smaller Lambda processes the category reference JSON into Silver Parquet on the same execution.
 
 After Silver is built, a data quality Lambda runs about 14 checks across both tables using Athena. If anything fails, the pipeline routes to an SNS alert and stops before Gold. If everything passes, a second Glue Spark job aggregates Silver into three Gold tables: daily trending summaries per region, channel rankings, and category breakdowns over time.
 
@@ -63,12 +63,13 @@ The whole flow runs through Step Functions with parallel branches for the transf
 
 | Layer | Tooling |
 |---|---|
+| **Scheduling** | Amazon EventBridge (cron rule triggers the Step Function) |
+| **Orchestration** | AWS Step Functions |
 | **Ingestion** | AWS Lambda (Python) + YouTube Data API v3 |
 | **Storage** | S3 (Parquet + Snappy in Silver/Gold, JSON in Bronze) |
 | **Processing** | AWS Glue (PySpark) + Lambda (awswrangler/pandas) |
 | **Catalog** | AWS Glue Data Catalog |
 | **Query** | Amazon Athena |
-| **Orchestration** | AWS Step Functions |
 | **Alerting** | Amazon SNS |
 | **Visualization** | Streamlit + Plotly |
 | **Container** | Docker |
@@ -172,8 +173,9 @@ If reproducing in your own account, you'll need (all in `us-west-2`):
 - 3 Glue databases: `yt_pipeline_bronze`, `yt_pipeline_silver`, `yt_pipeline_gold`
 - 1 Glue crawler on Bronze
 - 2 Glue Spark jobs (`bronze_to_silver`, `silver_to_gold`)
-- 3 Lambda functions (ingestion, json→parquet, DQ check)
+- 3 Lambda functions (ingestion, json to parquet, DQ check)
 - 1 Step Functions state machine
+- 1 EventBridge rule (cron schedule that starts the Step Function)
 - 1 SNS topic for alerts
 - IAM roles for each component with scoped permissions
 
