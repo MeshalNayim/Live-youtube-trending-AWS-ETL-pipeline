@@ -179,12 +179,11 @@ If reproducing in your own account, you'll need (all in `us-west-2`):
 
 A YouTube Data API v3 key is required for ingestion.
 
-## What's deliberately not here yet
+## Step-Function
 
-- **Infrastructure as Code (Terraform/CDK)** — pipeline is currently console-deployed
-- **CI/CD** — Lambdas/Glue scripts are uploaded manually
-- **Unit tests** — DQ logic is pure-functional and would test cleanly
-- **Secrets Manager** — YouTube API key currently lives in a Lambda env var
+<img width="1088" height="637" alt="image" src="https://github.com/user-attachments/assets/b963924b-060a-4ca0-8e54-89d11dd80c13" />
+
+
 
 ## License
 
