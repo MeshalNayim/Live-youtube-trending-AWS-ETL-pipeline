@@ -1,0 +1,20 @@
+services:
+  dashboard:
+    build: .
+    image: yt-trending-dashboard:latest
+    container_name: yt-trending-dashboard
+    ports:
+      - "8501:8501"
+    environment:
+      AWS_REGION: ${AWS_REGION:-us-west-2}
+      GOLD_DB: ${GOLD_DB:-yt_pipeline_gold}
+      ATHENA_WORKGROUP: ${ATHENA_WORKGROUP:-primary}
+      # Mounted creds below are preferred; uncomment these only if you
+      # are passing keys via .env instead of a mounted ~/.aws directory.
+      # AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      # AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    volumes:
+      # Pass through your local AWS creds read-only.
+      # On Windows this resolves to C:\Users\<you>\.aws.
+      - ${USERPROFILE:-${HOME}}/.aws:/home/app/.aws:ro
+    restart: unless-stopped
