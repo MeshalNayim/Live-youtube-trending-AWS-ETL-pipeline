@@ -1,6 +1,12 @@
-# YouTube Trending Analytics — AWS Data Pipeline
+# YouTube Trending Analytics, AWS Data Pipeline
 
-End-to-end serverless data pipeline that ingests YouTube trending data from 10 regions, processes it through a Bronze → Silver → Gold medallion architecture on AWS, validates data quality, and exposes the results via an interactive Streamlit dashboard.
+🔴 **Live dashboard:** <https://live-youtube-trending-aws-etl-pipeline.streamlit.app/>
+
+A working data pipeline I built on AWS to learn the medallion architecture end to end. Every few hours a scheduled Lambda hits the YouTube Data API and pulls trending video stats plus category mappings for 10 regions, landing raw JSON in a Bronze S3 bucket. A Glue Spark job reads Bronze, enforces schema, deduplicates, and adds derived metrics like engagement rate, then writes Parquet to Silver. A separate small Lambda handles the category reference data on S3 events.
+
+After Silver is built, a data quality Lambda runs about 14 checks across both tables using Athena. If anything fails, the pipeline routes to an SNS alert and stops before Gold. If everything passes, a second Glue Spark job aggregates Silver into three Gold tables: daily trending summaries per region, channel rankings, and category breakdowns over time.
+
+The whole flow runs through Step Functions with parallel branches for the transforms, scoped retries on transient errors, and explicit failure paths. Gold tables are registered in the Glue Catalog and queried by a Streamlit dashboard that runs Athena queries through awswrangler and renders Plotly charts. The dashboard ships with a Dockerfile and docker compose for local runs.
 
 ## Architecture
 
@@ -121,7 +127,7 @@ Runs after every Silver build, before Gold. Returns `quality_passed: false` if a
 
 ## Running the dashboard
 
-The dashboard lives in [`streamlit/`](streamlit/) and has its own README with detailed setup. TL;DR:
+A live version is hosted at <https://live-youtube-trending-aws-etl-pipeline.streamlit.app/>. To run it yourself, the code lives in [`streamlit/`](streamlit/) and has its own README with detailed setup. TL;DR:
 
 **Local with Python:**
 
@@ -141,6 +147,21 @@ docker compose up --build
 ```
 
 Both open the dashboard at <http://localhost:8501>. AWS credentials are read from your standard boto3 chain (`~/.aws/credentials`, env vars, or IAM role).
+
+### Caching
+
+Every chart on the dashboard is backed by an Athena query, and Athena charges per terabyte scanned. To keep cost and load times sane, the app caches query results in memory using Streamlit's `@st.cache_data` decorator:
+
+| What is cached | TTL | Reason |
+|---|---|---|
+| Each tab's main query result | 10 minutes | The Gold layer only refreshes when the Step Function runs, so frequent re-queries on the same filter combo would be wasted scans. |
+| Region list and date bounds | 1 hour | These change only when a new region is ingested or a new day's data lands, both rare events. |
+
+The cache key is the SQL string itself. Changing region selection or date range produces a different SQL, which misses the cache and triggers a fresh Athena query. Selecting the same filters again within 10 minutes returns the cached pandas DataFrame instantly with no Athena call.
+
+If you need to force fresh data (for example right after the Step Function finishes a new run), use the **🔄 Clear cache** button in the sidebar. This calls `st.cache_data.clear()` and reruns the app, so the next query hits Athena directly.
+
+In practice this means the dashboard costs almost nothing to host. A typical day with a few dozen visitors triggers maybe 20 to 30 Athena queries against compressed Parquet, well within the AWS free tier.
 
 ## AWS resources required
 

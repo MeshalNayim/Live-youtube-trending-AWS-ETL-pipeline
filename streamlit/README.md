@@ -1,6 +1,8 @@
-# YouTube Trending Analytics — Streamlit Dashboard
+# YouTube Trending Analytics, Streamlit Dashboard
 
-Interactive dashboard over the Gold layer of the YT pipeline. Queries Athena directly — no data is loaded into the app, every chart is computed by Athena scanning Parquet in S3.
+🔴 **Live:** <https://live-youtube-trending-aws-etl-pipeline.streamlit.app/>
+
+Interactive dashboard over the Gold layer of the YT pipeline. Queries Athena directly. No data is loaded into the app. Every chart is computed by Athena scanning Parquet in S3, with results cached in the app for 10 minutes to avoid repeat scans.
 
 ## Tables consumed
 
@@ -65,9 +67,18 @@ streamlit run app.py
 
 ## Caching behaviour
 
-- Query results are cached for **10 minutes** (`@st.cache_data(ttl=600)`) to keep Athena costs and load times low.
-- Region list and date bounds are cached for **1 hour** — they change rarely.
-- Sidebar has a **🔄 Clear cache** button to force a fresh query.
+Athena charges per terabyte scanned, and a cold query against partitioned Parquet still takes a couple of seconds. To keep both cost and latency low, the app wraps every query in Streamlit's `@st.cache_data`:
+
+| What is cached | TTL | Why |
+|---|---|---|
+| Each tab's main query result | 10 minutes | Gold data only changes when the Step Function runs. Re-querying the same filter combo within 10 minutes returns the cached DataFrame with zero Athena cost. |
+| Region list and date bounds | 1 hour | These change only when a new region is ingested or a new day's data lands. |
+
+The cache key is the full SQL string. Changing region selection or date range generates different SQL, misses the cache, and triggers a fresh Athena query. Selecting the same filters again returns instantly.
+
+If you need to force fresh data (for example right after a pipeline run completes), click **🔄 Clear cache** in the sidebar. This calls `st.cache_data.clear()` and reruns the app so the next query hits Athena directly.
+
+In practice this keeps hosting costs near zero. A typical day with a few dozen visitors triggers maybe 20 to 30 Athena queries against compressed Parquet, well inside the AWS free tier.
 
 ## Deploying to Streamlit Cloud (optional)
 
